@@ -176,37 +176,38 @@ app.delete('/colors/:id', (req, res) => {
 });
 
 // ---- Endpoint para Convertir Color ----
-app.post('/convert-color', (req, res) => {
-    const { color, fromFormat, toFormat } = req.body;
-    if (!color || !fromFormat || !toFormat) return res.status(400).json({ error: 'Faltan datos' });
+app.post('/convert-palette', (req, res) => {
+    const { palette_id, toFormat } = req.body;
+    if (!palette_id || !toFormat) return res.status(400).json({ error: 'Faltan datos' });
 
-    try {
-        let result;
-        if (fromFormat.toLowerCase() === 'rgb' && toFormat.toLowerCase() === 'hex') {
-            // RGB (e.g., "255,0,0") a HEX (e.g., "#FF0000")
-            const rgb = color.split(',').map(Number);
-            if (rgb.length !== 3 || rgb.some(v => isNaN(v) || v < 0 || v > 255)) {
-                return res.status(400).json({ error: 'Formato RGB inválido' });
-            }
-            result = `#${rgb.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
-        } else if (fromFormat.toLowerCase() === 'hex' && toFormat.toLowerCase() === 'rgb') {
-            // HEX (e.g., "#FF0000" o "FF0000") a RGB (e.g., "255,0,0")
-            const hex = color.replace(/^#/, '');
-            if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
-                return res.status(400).json({ error: 'Formato HEX inválido' });
-            }
-            const rgb = [];
-            for (let i = 0; i < 6; i += 2) {
-                rgb.push(parseInt(hex.substr(i, 2), 16));
-            }
-            result = rgb.join(',');
-        } else {
-            return res.status(400).json({ error: 'Conversión no soportada' });
+    const query = `
+        SELECT c.rgb
+        FROM palette_colors pc
+        JOIN colors c ON pc.color_id = c.id
+        WHERE pc.palette_id = ?
+        ORDER BY pc.position
+    `;
+    connection.query(query, [palette_id], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.length === 0) return res.status(404).json({ error: 'Paleta no encontrada' });
+
+        try {
+            const convertedColors = results.map(color => {
+                if (toFormat.toLowerCase() === 'hex') {
+                    const rgb = color.rgb.split(',').map(Number);
+                    if (rgb.length !== 3 || rgb.some(v => isNaN(v) || v < 0 || v > 255)) {
+                        throw new Error('Formato RGB inválido');
+                    }
+                    return `#${rgb.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+                } else {
+                    throw new Error('Formato no soportado');
+                }
+            });
+            res.json({ palette_id, convertedColors });
+        } catch (err) {
+            res.status(400).json({ error: err.message });
         }
-        res.json({ convertedColor: result });
-    } catch (err) {
-        res.status(500).json({ error: 'Error al convertir color' });
-    }
+    });
 });
 
 // ---- Endpoints para Palettes ----
