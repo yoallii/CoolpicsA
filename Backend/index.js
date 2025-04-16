@@ -210,6 +210,28 @@ app.post('/convert-palette', (req, res) => {
     });
 });
 
+
+// POST: Convertir un color individual
+app.post('/convert-color', (req, res) => {
+    const { color, fromFormat, toFormat } = req.body;
+    if (!color || !fromFormat || !toFormat) return res.status(400).json({ error: 'Faltan datos' });
+
+    try {
+        if (fromFormat.toLowerCase() === 'rgb' && toFormat.toLowerCase() === 'hex') {
+            const rgb = color.split(',').map(Number);
+            if (rgb.length !== 3 || rgb.some(v => isNaN(v) || v < 0 || v > 255)) {
+                throw new Error('Formato RGB inválido');
+            }
+            const hex = `#${rgb.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+            res.json({ convertedColor: hex });
+        } else {
+            throw new Error('Conversión no soportada');
+        }
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
 // ---- Endpoints para Palettes ----
 // POST: Crear una paleta
 app.post('/palettes', (req, res) => {
